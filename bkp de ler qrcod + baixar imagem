@@ -1,0 +1,60 @@
+import logging
+from pyzbar.pyzbar import decode
+from PIL import Image
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+import os
+import pytesseract
+
+# Configuração básica do logging
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
+
+# Configuração do Selenium
+chrome_options = Options()
+chrome_options.add_argument("--headless")  # Rodar Chrome em modo headless
+driver = webdriver.Chrome(options=chrome_options)
+wait = WebDriverWait(driver, 10)  # Configura uma espera de até 10 segundos
+
+# Configurar o caminho do Tesseract, se necessário
+# pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
+pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
+
+# Carregar a imagem que contém o QR Code
+try:
+    imagem = Image.open("cupom2.jpg")
+    qrcodes = decode(imagem)
+    logging.info("QR Code(s) decodificado(s) com sucesso.")
+except Exception as e:
+    logging.error(f"Erro ao carregar ou decodificar imagem: {e}")
+    qrcodes = []
+
+# Processar cada QR Code encontrado
+for qrcode in qrcodes:
+    url = qrcode.data.decode("utf-8")
+    logging.info(f"Acessando URL: {url}")
+
+    # Usar Selenium para abrir a URL
+    driver.get(url)
+
+    # Encontrar a imagem pelo ID ou caminho utilizando a nova sintaxe e esperas explícitas
+    try:
+        # Esperar até que a imagem seja visível na página
+        image_element = wait.until(EC.visibility_of_element_located((By.ID, "img_captcha")))
+
+        # Capturar a imagem diretamente
+        image_path = os.path.join("./", "captcha_image.png")
+        image_element.screenshot(image_path)
+        logging.info(f"Imagem baixada com sucesso e salva em: {image_path}")
+
+        # Realizar OCR na imagem capturada
+        captcha_text = pytesseract.image_to_string(Image.open(image_path))
+        logging.info(f"Texto OCR do captcha: {captcha_text}")
+
+    except Exception as e:
+        logging.error(f"Erro ao encontrar ou baixar a imagem: {e}")
+
+# Fechar o navegador após completar as ações
+driver.quit()
